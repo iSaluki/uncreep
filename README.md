@@ -22,10 +22,12 @@
 > - **Patched apps may contain new security vulnerabilities.** The creator of this repository can't be held
 >   liable for them. AI is good at reverse engineering and writing code, but different models behave
 >   differently, and uncreep has **not been tested against many apps**.
+>   - **Patched apps will not auto update.** The process of patching an app will likely prevent it from being auto updated by the Play Store or other app stores. You will need to manually update it by updating your patched version. Not updating may cause features to stop working, prevent new features from appearing and make your device vulnerable to exploits.
 > - **Modifying an app may be against its terms and conditions or the law where you live.** Only use uncreep
 >   where you are sure it is legally permitted.
 > - **The creator of this repository waives all responsibility to the maximum extent permitted by law.** You
 >   use uncreep and anything it produces entirely at your own risk.
+
 
 ## Why
 
