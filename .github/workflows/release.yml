@@ -1,0 +1,35 @@
+name: Publish APK release
+
+# Publishes the APKs that `./uncreep deliver <package> --release-branch --confirm-private`
+# committed to release/ as a GitHub Release. It refuses to run in a public repository: a patched
+# app contains its publisher's code and must not be redistributed. See docs/delivery.md.
+on:
+  push:
+    paths: ["release/TAG"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse in public repositories
+        if: ${{ !github.event.repository.private }}
+        run: |
+          echo "::error::This repository is public. Releases of patched apps are only published from private copies of uncreep."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Reassemble and verify APKs
+        run: sh release/join.sh
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(cat release/TAG)
+          gh release create "$TAG" release/*.apk release/SHA256SUMS \
+            --title "$TAG" --notes-file release/NOTES.md --target "$GITHUB_SHA"

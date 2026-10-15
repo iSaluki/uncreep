@@ -1,0 +1,23 @@
+# Apps, decompiled code and builds never belong in this repository.
+/workspace
+*.apk
+*.xapk
+*.apks
+*.apkm
+*.dex
+*.idsig
+
+# Delivery staging. `./uncreep deliver --release-branch` force-adds it, and only in a private copy.
+/release
+
+# Signing keys
+/keystore
+*.jks
+*.keystore
+
+# Downloaded tools
+tools/*
+!tools/setup.sh
+
+__pycache__/
+*.pyc

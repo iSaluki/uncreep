@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "rea": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "rea-agents@6.4.0", "mcp"],
+      "env": {
+        "REA_JADX_MCP_JAR": "${CLAUDE_PROJECT_DIR:-.}/tools/jadx-headless-mcp.jar",
+        "REA_APKTOOL_COMMAND": "${CLAUDE_PROJECT_DIR:-.}/tools/apktool"
+      }
+    }
+  }
+}

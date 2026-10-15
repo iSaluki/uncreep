@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# uncreep: keep the app, lose the creep.
+#
+#   ./uncreep setup                         install tools (pinned, checksummed) into tools/
+#   ./uncreep acquire <package>[@version]   download + verify identity   (Phase 1)
+#             [--source apk-pure|google-play|f-droid|huawei-app-gallery] [--file app.apk|.xapk|.apks]
+#   ./uncreep analyse <package>             decompile + audit + scan       (Phases 2-3)
+#   ./uncreep new-recipe <package>          start recipes/<package>/ from the template
+#   ./uncreep build <package> [--no-merge]  patch, rebuild, sign           (Phase 5)
+#   ./uncreep verify <package> [--method 'com/foo/Bar->name']
+#   ./uncreep deliver <package> [--github-release | --release-branch]      (Phase 6)
+#   ./uncreep clean <package>               delete workspace/<package>/ except input/
+#
+# Agents: read AGENTS.md first. Humans: read README.md and DISCLAIMER.md.
+set -euo pipefail
+REPO="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+cd "$REPO"
+
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+cmd="${1:-}"; [ -n "$cmd" ] || usage 1; shift
+
+need_tools() { [ -x tools/build-tools/apksigner ] || { echo "tools missing: run ./uncreep setup" >&2; exit 1; }; }
+pkg_arg() { [ -n "${1:-}" ] || { echo "missing <package>" >&2; usage 1; }; }
+
+case "$cmd" in
+  setup)      exec tools/setup.sh "$@" ;;
+  acquire)    need_tools; pkg_arg "${1:-}"; exec python3 scripts/acquire.py "$@" ;;
+  analyse|analyze) need_tools; pkg_arg "${1:-}"; exec scripts/analyse.sh "$@" ;;
+  new-recipe)
+    pkg_arg "${1:-}"; P="$1"; D="recipes/$P"
+    [ -e "$D" ] && { echo "$D already exists" >&2; exit 1; }
+    ID="workspace/$P/input/IDENTITY.json"
+    [ -f "$ID" ] || { echo "no $ID: run ./uncreep acquire $P first" >&2; exit 1; }
+    cp -r recipes/_template "$D"
+    python3 - "$D/recipe.py" "$ID" "$P" <<'PY'
+import json, re, sys
+path, ident, pkg = sys.argv[1:]
+b = json.load(open(ident))["base.apk"]
+s = open(path).read()
+signer = b["signers"][0]["sha256"] if b["signers"] else None
+s = s.replace("<App name> <version> (<package>)", f"{b['label']} {b['version_name']} ({pkg})")
+s = s.replace('PACKAGE = "com.example.app"', f'PACKAGE = "{pkg}"')
+s = s.replace('VERSION = "1.2.3"', f'VERSION = "{b["version_name"]}"')
+s = re.sub(r'BASE_SHA256 = "0+"', f'BASE_SHA256 = "{b["sha256"]}"', s)
+s = s.replace("SIGNER_SHA256 = None", f'SIGNER_SHA256 = "{signer}"' if signer else "SIGNER_SHA256 = None")
+name = re.sub(r"[^a-z0-9]+", "-", (b["label"] or pkg).lower()).strip("-")
+s = s.replace('OUTPUT_NAME = "example-uncreeped"', f'OUTPUT_NAME = "{name}-uncreeped"')
+open(path, "w").write(s)
+PY
+    cp docs/findings-template.md "$D/FINDINGS.md"
+    echo "created $D/ (recipe.py with pins filled in, FINDINGS.md to complete)"
+    ;;
+  build)
+    need_tools; pkg_arg "${1:-}"; P="$1"; shift
+    [ -f "recipes/$P/recipe.py" ] || { echo "no recipes/$P/recipe.py: ./uncreep new-recipe $P" >&2; exit 1; }
+    exec python3 -m patchkit.build --recipe "recipes/$P" --input "workspace/$P/input" \
+      --out "workspace/$P/out" --work "workspace/$P/build" "$@" ;;
+  verify)     need_tools; pkg_arg "${1:-}"; exec python3 scripts/verify.py "$@" ;;
+  deliver)    pkg_arg "${1:-}"; exec scripts/deliver.sh "$@" ;;
+  clean)
+    pkg_arg "${1:-}"; W="workspace/$1"
+    [ -d "$W" ] || exit 0
+    find "$W" -mindepth 1 -maxdepth 1 ! -name input -exec rm -rf {} +
+    echo "cleaned $W (kept input/)" ;;
+  -h|--help|help) usage ;;
+  *) echo "unknown command: $cmd" >&2; usage 1 ;;
+esac
